@@ -11,6 +11,12 @@ Connect multiple MCP servers in one place. Instead of adding each server separat
 - **Web dashboard** — add/remove servers, browse tools, and test them in the browser
 - **All transports** — supports stdio (local processes), SSE, and Streamable HTTP
 
+## Screenshots
+
+![Add MCP Server](docs/screenshot-add-server.png)
+
+![Integrations — one-click config for VS Code & Claude Code](docs/screenshot-integrations.png)
+
 ## Token efficiency
 
 When an AI assistant connects directly to multiple MCP servers, it receives the full tool list from every server at the start of each session. With many servers, this can consume a significant portion of the context window before any real work begins.
