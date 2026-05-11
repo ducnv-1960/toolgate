@@ -30,8 +30,7 @@ Toolgate exposes only 3 tools to the AI (`search_tools`, `execute_tool`, `list_t
 Requires Node.js 18+.
 
 ```bash
-npm install
-cd dashboard && npm install && npm run build && cd ..
+npm run setup
 npm run dev
 ```
 

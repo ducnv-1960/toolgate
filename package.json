@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
+    "setup": "npm install && cd dashboard && npm install && npm run build && cd ..",
     "dev": "tsx watch src/main.ts",
     "build": "tsc && npm run build:dashboard",
     "build:dashboard": "cd dashboard && npm run build",
