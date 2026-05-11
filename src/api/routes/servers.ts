@@ -52,7 +52,7 @@ export function buildServersRouter(clientManager: MCPClientManager, port: number
       return res.status(400).json({ error: "Invalid transport type" });
     }
     if (isSelfUrl(transport)) {
-      return res.status(400).json({ error: "Cannot add MCP Hub itself as a child server — this would cause an infinite loop" });
+      return res.status(400).json({ error: "Cannot add Toolgate itself as a child server — this would cause an infinite loop" });
     }
 
     const id = randomUUID();
@@ -86,7 +86,7 @@ export function buildServersRouter(clientManager: MCPClientManager, port: number
       return res.status(400).json({ error: "Invalid transport type" });
     }
     if (isSelfUrl(transport)) {
-      return res.status(400).json({ error: "Cannot point a server at MCP Hub itself" });
+      return res.status(400).json({ error: "Cannot point a server at Toolgate itself" });
     }
 
     updateServer(server.id, name, transport);

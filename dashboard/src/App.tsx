@@ -20,7 +20,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-14 gap-4">
             <span className="text-indigo-400 font-bold text-lg mr-4">
-              MCP Hub
+              Toolgate
             </span>
             <NavLink to="/" end className={navCls}>
               Servers

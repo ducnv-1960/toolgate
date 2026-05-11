@@ -86,7 +86,7 @@ function IntegrationCard({
 
       {!status.configured && (
         <p className="text-sm text-gray-500 mb-4">
-          MCP Hub is not registered yet. Click below to add it automatically.
+          Toolgate is not registered yet. Click below to add it automatically.
         </p>
       )}
 
@@ -186,12 +186,12 @@ export default function IntegrationsPage() {
   if (!data) return <p className="text-gray-400">Loading...</p>;
 
   const vsCodeRaw = JSON.stringify(
-    { servers: { "mcp-hub": { type: "http", url: data.hubUrl } } },
+    { servers: { "toolgate": { type: "http", url: data.hubUrl } } },
     null,
     2
   );
   const claudeCodeRaw = JSON.stringify(
-    { mcpServers: { "mcp-hub": { type: "http", url: data.hubUrl } } },
+    { mcpServers: { "toolgate": { type: "http", url: data.hubUrl } } },
     null,
     2
   );
@@ -201,14 +201,14 @@ export default function IntegrationsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-1">Integrations</h1>
         <p className="text-gray-400 text-sm">
-          Automatically register MCP Hub in VS Code or Claude Code so it loads on startup.
+          Automatically register Toolgate in VS Code or Claude Code so it loads on startup.
         </p>
       </div>
 
       {/* Hub URL info */}
       <div className="bg-indigo-950/50 border border-indigo-800 rounded-xl p-4 mb-8 flex items-center gap-4">
         <div className="flex-1">
-          <p className="text-xs text-indigo-400 font-medium mb-1">MCP Hub URL (current)</p>
+          <p className="text-xs text-indigo-400 font-medium mb-1">Toolgate URL (current)</p>
           <p className="font-mono text-sm text-indigo-200">{data.hubUrl}</p>
         </div>
         <CopyButton text={data.hubUrl} className="bg-indigo-900/50 hover:bg-indigo-800/60 text-indigo-300" />
@@ -241,7 +241,7 @@ export default function IntegrationsPage() {
         <h3 className="text-sm font-semibold mb-3 text-gray-300">Notes</h3>
         <ul className="text-sm text-gray-400 space-y-1.5 list-disc list-inside">
           <li>After adding the config, <strong className="text-gray-200">restart</strong> VS Code or Claude Code for it to take effect.</li>
-          <li>MCP Hub must be running before VS Code / Claude Code starts for the connection to succeed.</li>
+          <li>Toolgate must be running before VS Code / Claude Code starts for the connection to succeed.</li>
           <li>If you change the port, click <strong className="text-gray-200">Update URL</strong> then restart the client.</li>
           <li>Config is written to the user-level (global) settings file and applies to all projects.</li>
         </ul>

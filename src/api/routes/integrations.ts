@@ -18,7 +18,7 @@ function getVSCodeMcpPath(): string {
 
 const VSCODE_MCP_PATH = getVSCodeMcpPath();
 const CLAUDE_CODE_PATH = join(homedir(), ".claude.json");
-const HUB_SERVER_NAME = "mcp-hub";
+const HUB_SERVER_NAME = "toolgate";
 
 function readJson(path: string): Record<string, unknown> {
   if (!existsSync(path)) return {};

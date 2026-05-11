@@ -28,7 +28,7 @@ export async function createApp(clientManager: MCPClientManager, port: number): 
   app.use("/api/logs", buildLogsRouter());
   app.use("/api/settings", buildSettingsRouter());
 
-  // MCP Hub endpoint — stateful per-session transports
+  // Toolgate MCP endpoint — stateful per-session transports
   mountMcpRouter(app, clientManager);
 
   // Serve React dashboard in production

@@ -1,7 +1,7 @@
 {
-  "name": "mcp-hub",
+  "name": "toolgate",
   "version": "1.0.0",
-  "description": "MCP Hub — aggregates multiple MCP servers, provides semantic tool search and unified execution",
+  "description": "Toolgate — aggregates multiple MCP servers, provides semantic tool search and unified execution",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {

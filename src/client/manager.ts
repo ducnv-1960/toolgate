@@ -40,7 +40,7 @@ export class MCPClientManager {
 
     try {
       const client = new Client(
-        { name: "mcp-hub", version: "1.0.0" },
+        { name: "toolgate", version: "1.0.0" },
         { capabilities: {} }
       );
 

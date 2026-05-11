@@ -10,7 +10,7 @@ import { listToolsDef, handleListTools } from "./tools/list.js";
 
 export function createHubServer(clientManager: MCPClientManager): McpServer {
   const server = new McpServer({
-    name: "mcp-hub",
+    name: "toolgate",
     version: "1.0.0",
   });
 
