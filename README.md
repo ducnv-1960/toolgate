@@ -1,5 +1,7 @@
 # Toolgate
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Connect multiple MCP servers in one place. Instead of adding each server separately to every AI tool you use, add them once to Toolgate — then connect your AI tools to the hub.
 
 **What you get:**
