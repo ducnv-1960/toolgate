@@ -5,8 +5,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import {
   updateServerStatus,
   updateServerToolCount,
-  upsertTools,
-  deleteToolsByServer,
+  replaceToolsForServer,
 } from "../config/db.js";
 import { scanTools } from "./scanner.js";
 import type {
@@ -110,8 +109,7 @@ export class MCPClientManager {
   ): Promise<void> {
     try {
       const tools = await scanTools(client, server.id, server.name);
-      deleteToolsByServer(server.id);
-      upsertTools(tools);
+      replaceToolsForServer(server.id, tools);
       updateServerToolCount(server.id, tools.length);
       await this.onToolsIndexed(server.id, tools);
     } catch (err) {

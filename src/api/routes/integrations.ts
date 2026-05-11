@@ -1,11 +1,23 @@
 import { Router } from "express";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
-import { homedir } from "os";
+import { homedir, platform } from "os";
 import { join } from "path";
 
-const VSCODE_MCP_PATH = join(homedir(), ".config/Code/User/mcp.json");
-const CLAUDE_CODE_PATH = join(homedir(), ".claude/settings.json");
+function getVSCodeMcpPath(): string {
+  const home = homedir();
+  switch (platform()) {
+    case "win32":
+      return join(process.env.APPDATA ?? join(home, "AppData", "Roaming"), "Code", "User", "mcp.json");
+    case "darwin":
+      return join(home, "Library", "Application Support", "Code", "User", "mcp.json");
+    default: // linux
+      return join(process.env.XDG_CONFIG_HOME ?? join(home, ".config"), "Code", "User", "mcp.json");
+  }
+}
+
+const VSCODE_MCP_PATH = getVSCodeMcpPath();
+const CLAUDE_CODE_PATH = join(homedir(), ".claude.json");
 const HUB_SERVER_NAME = "mcp-hub";
 
 function readJson(path: string): Record<string, unknown> {

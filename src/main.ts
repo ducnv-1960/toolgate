@@ -1,6 +1,6 @@
 import { createApp } from "./api/index.js";
 import { MCPClientManager } from "./client/manager.js";
-import { indexTools, removeServerFromIndex } from "./search/indexer.js";
+import { indexTools, removeServerFromIndex, rebuildBm25 } from "./search/indexer.js";
 import { getEmbeddingPipeline } from "./search/embedding.js";
 import { listServers } from "./config/db.js";
 import type { ToolRecord } from "./config/types.js";
@@ -9,6 +9,9 @@ const PORT = parseInt(process.env.PORT ?? "3000");
 
 async function main() {
   console.log("[MCP Hub] Starting...");
+
+  // Rebuild BM25 index from existing DB tools (in-memory, fast)
+  rebuildBm25();
 
   // Pre-load embedding model to avoid delay on first search
   getEmbeddingPipeline().catch((err) =>
@@ -43,7 +46,7 @@ async function main() {
     );
   }
 
-  const app = createApp(clientManager, PORT);
+  const app = await createApp(clientManager, PORT);
 
   const httpServer = app.listen(PORT, () => {
     console.log(`[MCP Hub] Running on http://localhost:${PORT}`);

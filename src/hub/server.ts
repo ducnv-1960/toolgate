@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import express from "express";
+import { randomUUID } from "crypto";
 import type { MCPClientManager } from "../client/manager.js";
 import { searchToolsDef, handleSearchTools } from "./tools/search.js";
 import { executeToolDef, buildHandleExecuteTool } from "./tools/execute.js";
@@ -78,23 +79,64 @@ export function createHubServer(clientManager: MCPClientManager): McpServer {
 
 export function mountMcpRouter(
   app: express.Application,
-  server: McpServer
+  clientManager: MCPClientManager
 ): void {
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless
-  });
-
-  server.connect(transport);
+  const sessions = new Map<string, StreamableHTTPServerTransport>();
 
   app.post("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res, req.body);
+    try {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+      if (sessionId) {
+        const transport = sessions.get(sessionId);
+        if (!transport) { res.status(404).end(); return; }
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
+
+      // New session — sessionId is assigned during handleRequest
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+      });
+      transport.onclose = () => {
+        if (transport.sessionId) sessions.delete(transport.sessionId);
+      };
+
+      const server = createHubServer(clientManager);
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+
+      // sessionId is set by the SDK during handleRequest
+      if (transport.sessionId) sessions.set(transport.sessionId, transport);
+    } catch (err) {
+      console.error("[MCP] POST error:", err);
+      if (!res.headersSent) res.status(500).end();
+    }
   });
 
   app.get("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res);
+    try {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      if (!sessionId) { res.status(400).end(); return; }
+      const transport = sessions.get(sessionId);
+      if (!transport) { res.status(404).end(); return; }
+      await transport.handleRequest(req, res);
+    } catch (err) {
+      console.error("[MCP] GET error:", err);
+      if (!res.headersSent) res.status(500).end();
+    }
   });
 
   app.delete("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res);
+    try {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      if (!sessionId) { res.status(400).end(); return; }
+      const transport = sessions.get(sessionId);
+      if (!transport) { res.status(404).end(); return; }
+      await transport.handleRequest(req, res);
+    } catch (err) {
+      console.error("[MCP] DELETE error:", err);
+      if (!res.headersSent) res.status(500).end();
+    }
   });
 }

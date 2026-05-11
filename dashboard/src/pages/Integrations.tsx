@@ -14,11 +14,33 @@ interface IntegrationsData {
   claudeCode: IntegrationStatus;
 }
 
+function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className={`text-xs px-2 py-1 rounded transition-colors ${
+        copied
+          ? "bg-green-800/60 text-green-300"
+          : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+      } ${className}`}
+    >
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
 function IntegrationCard({
   title,
   icon,
   status,
   hubUrl,
+  rawConfig,
   onAdd,
   onRemove,
   loading,
@@ -27,6 +49,7 @@ function IntegrationCard({
   icon: React.ReactNode;
   status: IntegrationStatus;
   hubUrl: string;
+  rawConfig: string;
   onAdd: () => void;
   onRemove: () => void;
   loading: boolean;
@@ -74,11 +97,7 @@ function IntegrationCard({
             disabled={loading}
             className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
           >
-            {loading
-              ? "Updating..."
-              : isStale
-              ? "Update URL"
-              : "Add to config"}
+            {loading ? "Updating..." : isStale ? "Update URL" : "Add to config"}
           </button>
         ) : (
           <button
@@ -96,6 +115,19 @@ function IntegrationCard({
           Restart VS Code / Claude Code to apply the change.
         </p>
       )}
+
+      {/* Raw config section */}
+      <div className="mt-4 border-t border-gray-700 pt-4">
+        <p className="text-xs text-gray-400 mb-2">Manual config (JSON)</p>
+        <div className="relative">
+          <pre className="bg-gray-900 rounded-lg p-4 text-xs font-mono text-gray-300 overflow-x-auto leading-relaxed">
+            {rawConfig}
+          </pre>
+          <div className="absolute top-2 right-2">
+            <CopyButton text={rawConfig} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -153,6 +185,17 @@ export default function IntegrationsPage() {
 
   if (!data) return <p className="text-gray-400">Loading...</p>;
 
+  const vsCodeRaw = JSON.stringify(
+    { servers: { "mcp-hub": { type: "http", url: data.hubUrl } } },
+    null,
+    2
+  );
+  const claudeCodeRaw = JSON.stringify(
+    { mcpServers: { "mcp-hub": { type: "http", url: data.hubUrl } } },
+    null,
+    2
+  );
+
   return (
     <div>
       <div className="mb-8">
@@ -168,12 +211,7 @@ export default function IntegrationsPage() {
           <p className="text-xs text-indigo-400 font-medium mb-1">MCP Hub URL (current)</p>
           <p className="font-mono text-sm text-indigo-200">{data.hubUrl}</p>
         </div>
-        <button
-          onClick={() => navigator.clipboard.writeText(data.hubUrl)}
-          className="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-900/50 px-3 py-1.5 rounded-lg"
-        >
-          Copy
-        </button>
+        <CopyButton text={data.hubUrl} className="bg-indigo-900/50 hover:bg-indigo-800/60 text-indigo-300" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -182,6 +220,7 @@ export default function IntegrationsPage() {
           icon="⬡"
           status={data.vscode}
           hubUrl={data.hubUrl}
+          rawConfig={vsCodeRaw}
           loading={!!loading["vscode"]}
           onAdd={() => handleAction("vscode", "add")}
           onRemove={() => handleAction("vscode", "remove")}
@@ -191,6 +230,7 @@ export default function IntegrationsPage() {
           icon="◆"
           status={data.claudeCode}
           hubUrl={data.hubUrl}
+          rawConfig={claudeCodeRaw}
           loading={!!loading["claude-code"]}
           onAdd={() => handleAction("claude-code", "add")}
           onRemove={() => handleAction("claude-code", "remove")}

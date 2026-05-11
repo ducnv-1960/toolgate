@@ -1,5 +1,18 @@
 import type { MCPClientManager } from "../../client/manager.js";
 import { getToolByServerAndName } from "../../config/db.js";
+import { addLog } from "../../logs/store.js";
+
+const TOOL_TIMEOUT_MS = parseInt(process.env.TOOL_TIMEOUT_MS ?? "30000");
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Tool "${label}" timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
 
 export const executeToolDef = {
   name: "execute_tool",
@@ -25,33 +38,62 @@ export const executeToolDef = {
   },
 };
 
-export function buildHandleExecuteTool(clientManager: MCPClientManager) {
+export function buildHandleExecuteTool(
+  clientManager: MCPClientManager,
+  caller: "mcp" | "rest" = "mcp"
+) {
   return async function handleExecuteTool(args: {
     server_id: string;
     tool_name: string;
     arguments?: Record<string, unknown>;
   }): Promise<object> {
     const { server_id, tool_name, arguments: toolArgs = {} } = args;
+    const start = Date.now();
 
     const tool = getToolByServerAndName(server_id, tool_name);
     if (!tool) {
-      throw new Error(
-        `Tool "${tool_name}" not found on server "${server_id}". Use search_tools or list_tools to find available tools.`
-      );
+      const error = `Tool "${tool_name}" not found on server "${server_id}". Use search_tools or list_tools to find available tools.`;
+      addLog({ timestamp: start, serverId: server_id, serverName: "", toolName: tool_name, arguments: toolArgs, error, durationMs: 0, caller });
+      throw new Error(error);
     }
 
     const client = clientManager.getClient(server_id);
     if (!client) {
-      throw new Error(
-        `Server "${server_id}" is not connected. Check the hub dashboard to reconnect.`
-      );
+      const error = `Server "${server_id}" is not connected. Check the hub dashboard to reconnect.`;
+      addLog({ timestamp: start, serverId: server_id, serverName: tool.serverName, toolName: tool_name, arguments: toolArgs, error, durationMs: 0, caller });
+      throw new Error(error);
     }
 
-    const result = await client.callTool({
-      name: tool_name,
-      arguments: toolArgs,
-    });
-
-    return { result };
+    try {
+      const result = await withTimeout(
+        client.callTool({ name: tool_name, arguments: toolArgs }),
+        TOOL_TIMEOUT_MS,
+        tool_name
+      );
+      addLog({
+        timestamp: start,
+        serverId: server_id,
+        serverName: tool.serverName,
+        toolName: tool_name,
+        arguments: toolArgs,
+        result,
+        durationMs: Date.now() - start,
+        caller,
+      });
+      return { result };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      addLog({
+        timestamp: start,
+        serverId: server_id,
+        serverName: tool.serverName,
+        toolName: tool_name,
+        arguments: toolArgs,
+        error,
+        durationMs: Date.now() - start,
+        caller,
+      });
+      throw err;
+    }
   };
 }

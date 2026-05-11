@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface TransportConfig {
   type: "stdio" | "sse" | "streamable-http";
@@ -19,6 +19,62 @@ interface Server {
   errorMessage?: string;
 }
 
+type FormState = typeof EMPTY_FORM;
+
+function ServerFormFields({ form, setForm }: { form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>> }) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Name</label>
+        <input required className="w-full bg-gray-700 rounded px-3 py-2 text-sm" value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="my-server" />
+      </div>
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Transport</label>
+        <select className="w-full bg-gray-700 rounded px-3 py-2 text-sm" value={form.transportType}
+          onChange={(e) => setForm((f) => ({ ...f, transportType: e.target.value as TransportConfig["type"] }))}>
+          <option value="stdio">stdio (local process)</option>
+          <option value="sse">SSE / HTTP</option>
+          <option value="streamable-http">Streamable HTTP (MCP 2025)</option>
+        </select>
+      </div>
+      {form.transportType === "stdio" ? (
+        <>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Command</label>
+            <input required className="w-full bg-gray-700 rounded px-3 py-2 text-sm" value={form.command}
+              onChange={(e) => setForm((f) => ({ ...f, command: e.target.value }))} placeholder="npx" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Args (one per line)</label>
+            <textarea className="w-full bg-gray-700 rounded px-3 py-2 text-sm h-20" value={form.args}
+              onChange={(e) => setForm((f) => ({ ...f, args: e.target.value }))}
+              placeholder={`-y\n@modelcontextprotocol/server-filesystem\n/tmp`} />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-sm text-gray-400 mb-1">Env (JSON, optional)</label>
+            <input className="w-full bg-gray-700 rounded px-3 py-2 text-sm" value={form.env}
+              onChange={(e) => setForm((f) => ({ ...f, env: e.target.value }))} placeholder='{"MY_VAR": "value"}' />
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">URL</label>
+            <input required className="w-full bg-gray-700 rounded px-3 py-2 text-sm" value={form.url}
+              onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} placeholder="http://localhost:8080/mcp" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Headers (JSON, optional)</label>
+            <input className="w-full bg-gray-700 rounded px-3 py-2 text-sm" value={form.headers}
+              onChange={(e) => setForm((f) => ({ ...f, headers: e.target.value }))} placeholder='{"Authorization": "Bearer token"}' />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const STATUS_COLORS: Record<string, string> = {
   connected: "bg-green-500",
   connecting: "bg-yellow-500",
@@ -26,22 +82,38 @@ const STATUS_COLORS: Record<string, string> = {
   error: "bg-red-500",
 };
 
+const EMPTY_FORM = {
+  name: "",
+  transportType: "stdio" as TransportConfig["type"],
+  command: "",
+  args: "",
+  env: "",
+  url: "",
+  headers: "",
+};
+
+function serverToForm(s: Server) {
+  const t = s.transport;
+  return {
+    name: s.name,
+    transportType: t.type,
+    command: t.type === "stdio" ? (t.command ?? "") : "",
+    args: t.type === "stdio" ? (t.args ?? []).join("\n") : "",
+    env: t.type === "stdio" && t.env ? JSON.stringify(t.env, null, 2) : "",
+    url: t.type !== "stdio" ? (t.url ?? "") : "",
+    headers: t.type !== "stdio" && t.headers ? JSON.stringify(t.headers, null, 2) : "",
+  };
+}
+
 export default function ServersPage() {
   const [servers, setServers] = useState<Server[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingServer, setEditingServer] = useState<Server | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Form state
-  const [form, setForm] = useState({
-    name: "",
-    transportType: "stdio" as TransportConfig["type"],
-    command: "",
-    args: "",
-    env: "",
-    url: "",
-    headers: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
 
   const fetchServers = useCallback(async () => {
@@ -52,34 +124,50 @@ export default function ServersPage() {
 
   useEffect(() => {
     fetchServers();
-    const interval = setInterval(fetchServers, 3000);
-    return () => clearInterval(interval);
+
+    function startPolling() {
+      intervalRef.current = setInterval(fetchServers, 3000);
+    }
+    function stopPolling() {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    function onVisibility() {
+      document.visibilityState === "visible" ? startPolling() : stopPolling();
+    }
+
+    startPolling();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [fetchServers]);
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    setFormError("");
-
-    let transport: TransportConfig;
+  function buildTransport(): TransportConfig | null {
     try {
       if (form.transportType === "stdio") {
-        transport = {
+        return {
           type: "stdio",
           command: form.command,
           args: form.args ? form.args.split("\n").filter(Boolean) : [],
           env: form.env ? JSON.parse(form.env) : undefined,
         };
-      } else {
-        transport = {
-          type: form.transportType,
-          url: form.url,
-          headers: form.headers ? JSON.parse(form.headers) : undefined,
-        };
       }
+      return {
+        type: form.transportType as "sse" | "streamable-http",
+        url: form.url,
+        headers: form.headers ? JSON.parse(form.headers) : undefined,
+      };
     } catch {
-      setFormError("Invalid JSON in env/headers field");
-      return;
+      return null;
     }
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError("");
+    const transport = buildTransport();
+    if (!transport) { setFormError("Invalid JSON in env/headers field"); return; }
 
     const res = await fetch("/api/servers", {
       method: "POST",
@@ -87,15 +175,42 @@ export default function ServersPage() {
       body: JSON.stringify({ name: form.name, transport }),
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      setFormError(err.error ?? "Failed to add server");
-      return;
-    }
-
+    if (!res.ok) { setFormError((await res.json()).error ?? "Failed to add server"); return; }
     setShowForm(false);
-    setForm({ name: "", transportType: "stdio", command: "", args: "", env: "", url: "", headers: "" });
+    setForm(EMPTY_FORM);
     fetchServers();
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError("");
+    if (!editingServer) return;
+    const transport = buildTransport();
+    if (!transport) { setFormError("Invalid JSON in env/headers field"); return; }
+
+    const res = await fetch(`/api/servers/${editingServer.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: form.name, transport }),
+    });
+
+    if (!res.ok) { setFormError((await res.json()).error ?? "Failed to update server"); return; }
+    setEditingServer(null);
+    setForm(EMPTY_FORM);
+    fetchServers();
+  }
+
+  function openEdit(s: Server) {
+    setEditingServer(s);
+    setForm(serverToForm(s));
+    setShowForm(false);
+    setFormError("");
+  }
+
+  function closeEdit() {
+    setEditingServer(null);
+    setForm(EMPTY_FORM);
+    setFormError("");
   }
 
   async function handleDelete(id: string, name: string) {
@@ -125,106 +240,36 @@ export default function ServersPage() {
         </button>
       </div>
 
+      {editingServer && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <form
+            onSubmit={handleEdit}
+            className="bg-gray-800 rounded-xl p-6 border border-gray-700 w-full max-w-lg"
+          >
+            <h2 className="text-lg font-semibold mb-4">Edit Server</h2>
+            {formError && <p className="text-red-400 text-sm mb-3">{formError}</p>}
+            <ServerFormFields form={form} setForm={setForm} />
+            <div className="flex gap-2 mt-4">
+              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm">
+                Save & Reconnect
+              </button>
+              <button type="button" onClick={closeEdit} className="bg-gray-700 hover:bg-gray-600 text-gray-300 px-4 py-2 rounded-md text-sm">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {showForm && (
         <form
           onSubmit={handleAdd}
           className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700"
         >
           <h2 className="text-lg font-semibold mb-4">Add MCP Server</h2>
-          {formError && (
-            <p className="text-red-400 text-sm mb-3">{formError}</p>
-          )}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Name</label>
-              <input
-                required
-                className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="my-server"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Transport</label>
-              <select
-                className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-                value={form.transportType}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, transportType: e.target.value as any }))
-                }
-              >
-                <option value="stdio">stdio (local process)</option>
-                <option value="sse">SSE / HTTP</option>
-                <option value="streamable-http">Streamable HTTP (MCP 2025)</option>
-              </select>
-            </div>
-
-            {form.transportType === "stdio" ? (
-              <>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Command</label>
-                  <input
-                    required
-                    className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-                    value={form.command}
-                    onChange={(e) => setForm((f) => ({ ...f, command: e.target.value }))}
-                    placeholder="npx"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Args (one per line)
-                  </label>
-                  <textarea
-                    className="w-full bg-gray-700 rounded px-3 py-2 text-sm h-20"
-                    value={form.args}
-                    onChange={(e) => setForm((f) => ({ ...f, args: e.target.value }))}
-                    placeholder={`-y\n@modelcontextprotocol/server-filesystem\n/tmp`}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Env (JSON, optional)
-                  </label>
-                  <input
-                    className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-                    value={form.env}
-                    onChange={(e) => setForm((f) => ({ ...f, env: e.target.value }))}
-                    placeholder='{"MY_VAR": "value"}'
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">URL</label>
-                  <input
-                    required
-                    className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-                    value={form.url}
-                    onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-                    placeholder="http://localhost:8080/mcp"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    Headers (JSON, optional)
-                  </label>
-                  <input
-                    className="w-full bg-gray-700 rounded px-3 py-2 text-sm"
-                    value={form.headers}
-                    onChange={(e) => setForm((f) => ({ ...f, headers: e.target.value }))}
-                    placeholder='{"Authorization": "Bearer token"}'
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <button
-            type="submit"
-            className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm"
-          >
+          {formError && <p className="text-red-400 text-sm mb-3">{formError}</p>}
+          <ServerFormFields form={form} setForm={setForm} />
+          <button type="submit" className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm">
             Add & Connect
           </button>
         </form>
@@ -266,6 +311,9 @@ export default function ServersPage() {
                 </p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => openEdit(s)} className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
+                  Edit
+                </button>
                 <button
                   onClick={() => handleReconnect(s.id)}
                   disabled={actionLoading === s.id + ":reconnect"}

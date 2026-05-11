@@ -24,6 +24,11 @@ export function getDb(): Database.Database {
   _db.pragma("foreign_keys = ON");
 
   _db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS mcp_servers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
@@ -57,6 +62,17 @@ export function closeDb(): void {
     _db.close();
     _db = null;
   }
+}
+
+// --- Settings ---
+
+export function getSetting(key: string, defaultValue: string): string {
+  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
+  return row?.value ?? defaultValue;
+}
+
+export function setSetting(key: string, value: string): void {
+  getDb().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
 }
 
 // --- MCP Server CRUD ---
@@ -108,6 +124,15 @@ export function updateServerToolCount(id: string, count: number): void {
   const db = getDb();
   db.prepare("UPDATE mcp_servers SET tool_count = ? WHERE id = ?").run(
     count,
+    id
+  );
+}
+
+export function updateServer(id: string, name: string, transport: TransportConfig): void {
+  const db = getDb();
+  db.prepare("UPDATE mcp_servers SET name = ?, transport_json = ? WHERE id = ?").run(
+    name,
+    JSON.stringify(transport),
     id
   );
 }
@@ -170,6 +195,25 @@ export function upsertTools(tools: ToolRecord[]): void {
     }
   });
   batch(tools);
+}
+
+export function replaceToolsForServer(serverId: string, tools: ToolRecord[]): void {
+  const db = getDb();
+  const del = db.prepare("DELETE FROM tools WHERE server_id = ?");
+  const upsert = db.prepare(`
+    INSERT INTO tools (id, server_id, server_name, name, description, input_schema_json, indexed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      description = excluded.description,
+      input_schema_json = excluded.input_schema_json,
+      indexed_at = excluded.indexed_at
+  `);
+  db.transaction(() => {
+    del.run(serverId);
+    for (const t of tools) {
+      upsert.run(t.id, t.serverId, t.serverName, t.name, t.description, JSON.stringify(t.inputSchema), t.indexedAt);
+    }
+  })();
 }
 
 export function deleteToolsByServer(serverId: string): void {

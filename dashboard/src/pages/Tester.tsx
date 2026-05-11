@@ -30,6 +30,7 @@ export default function TesterPage() {
   const [args, setArgs] = useState("{}");
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const [executing, setExecuting] = useState(false);
 
   useEffect(() => {
@@ -68,9 +69,38 @@ export default function TesterPage() {
     }
   }, [selectedTool]);
 
+  function validateAgainstSchema(parsedArgs: Record<string, unknown>): string[] {
+    if (!currentTool?.inputSchema) return [];
+    const schema = currentTool.inputSchema as { required?: string[]; properties?: Record<string, { type?: string }> };
+    const required: string[] = schema.required ?? [];
+    const props = schema.properties ?? {};
+    const warnings: string[] = [];
+
+    for (const field of required) {
+      if (parsedArgs[field] === undefined || parsedArgs[field] === "") {
+        warnings.push(`Required field missing: "${field}"`);
+      }
+    }
+    for (const [key, val] of Object.entries(parsedArgs)) {
+      const propType = props[key]?.type;
+      if (propType && val !== null) {
+        const jsType = typeof val;
+        const mismatch =
+          (propType === "string" && jsType !== "string") ||
+          (propType === "number" && jsType !== "number") ||
+          (propType === "boolean" && jsType !== "boolean") ||
+          (propType === "array" && !Array.isArray(val)) ||
+          (propType === "object" && (jsType !== "object" || Array.isArray(val)));
+        if (mismatch) warnings.push(`"${key}" expects ${propType}, got ${Array.isArray(val) ? "array" : jsType}`);
+      }
+    }
+    return warnings;
+  }
+
   async function handleExecute() {
     setError(null);
     setResult(null);
+    setValidationWarnings([]);
     setExecuting(true);
 
     let parsedArgs: Record<string, unknown>;
@@ -81,6 +111,9 @@ export default function TesterPage() {
       setExecuting(false);
       return;
     }
+
+    const warnings = validateAgainstSchema(parsedArgs);
+    setValidationWarnings(warnings);
 
     try {
       const res = await fetch("/api/tools/execute", {
@@ -165,6 +198,15 @@ export default function TesterPage() {
               </pre>
             </details>
           )}
+        </div>
+      )}
+
+      {validationWarnings.length > 0 && (
+        <div className="mb-3 bg-yellow-900/30 border border-yellow-700/50 rounded-lg px-4 py-2.5">
+          <p className="text-xs font-medium text-yellow-400 mb-1">Schema warnings</p>
+          <ul className="text-xs text-yellow-300 space-y-0.5 list-disc list-inside">
+            {validationWarnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
         </div>
       )}
 

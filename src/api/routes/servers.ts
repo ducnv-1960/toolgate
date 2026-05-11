@@ -4,13 +4,23 @@ import {
   listServers,
   getServer,
   insertServer,
+  updateServer,
   deleteServer,
 } from "../../config/db.js";
 import type { MCPClientManager } from "../../client/manager.js";
 import type { TransportConfig } from "../../config/types.js";
 
-export function buildServersRouter(clientManager: MCPClientManager): Router {
+export function buildServersRouter(clientManager: MCPClientManager, port: number): Router {
   const router = Router();
+
+  function isSelfUrl(transport: TransportConfig): boolean {
+    if (transport.type === "stdio") return false;
+    try {
+      const u = new URL(transport.url);
+      const isLocal = ["localhost", "127.0.0.1", "::1"].includes(u.hostname);
+      return isLocal && parseInt(u.port || "80") === port;
+    } catch { return false; }
+  }
 
   // GET /api/servers
   router.get("/", (_req, res) => {
@@ -41,6 +51,9 @@ export function buildServersRouter(clientManager: MCPClientManager): Router {
     if (!["stdio", "sse", "streamable-http"].includes(transport.type)) {
       return res.status(400).json({ error: "Invalid transport type" });
     }
+    if (isSelfUrl(transport)) {
+      return res.status(400).json({ error: "Cannot add MCP Hub itself as a child server — this would cause an infinite loop" });
+    }
 
     const id = randomUUID();
     const server = {
@@ -60,6 +73,31 @@ export function buildServersRouter(clientManager: MCPClientManager): Router {
     });
 
     res.status(201).json(server);
+  });
+
+  // PUT /api/servers/:id
+  router.put("/:id", async (req, res) => {
+    const server = getServer(req.params.id);
+    if (!server) return res.status(404).json({ error: "Server not found" });
+
+    const { name, transport } = req.body as { name?: string; transport?: TransportConfig };
+    if (!name || !transport) return res.status(400).json({ error: "name and transport are required" });
+    if (!["stdio", "sse", "streamable-http"].includes(transport.type)) {
+      return res.status(400).json({ error: "Invalid transport type" });
+    }
+    if (isSelfUrl(transport)) {
+      return res.status(400).json({ error: "Cannot point a server at MCP Hub itself" });
+    }
+
+    updateServer(server.id, name, transport);
+    const updated = getServer(server.id)!;
+
+    // Reconnect with new config
+    clientManager.reconnect(updated).catch((err) => {
+      console.error(`[API] Failed to reconnect ${name}:`, err.message);
+    });
+
+    res.json(updated);
   });
 
   // DELETE /api/servers/:id

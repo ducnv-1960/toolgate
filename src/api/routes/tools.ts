@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { listTools } from "../../config/db.js";
-import { searchTools as searchToolsFromIndex } from "../../search/indexer.js";
+import { searchTools as searchToolsFromIndex, indexTools, removeServerFromIndex } from "../../search/indexer.js";
 import { buildHandleExecuteTool } from "../../hub/tools/execute.js";
 import type { MCPClientManager } from "../../client/manager.js";
 
 export function buildToolsRouter(clientManager: MCPClientManager): Router {
   const router = Router();
-  const handleExecuteTool = buildHandleExecuteTool(clientManager);
+  const handleExecuteTool = buildHandleExecuteTool(clientManager, "rest");
 
   // GET /api/tools?server_id=...
   router.get("/", (req, res) => {
@@ -35,6 +35,27 @@ export function buildToolsRouter(clientManager: MCPClientManager): Router {
         })),
         total: results.length,
       });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // POST /api/tools/reindex — rebuild the vector index from current DB tools
+  router.post("/reindex", async (_req, res) => {
+    try {
+      const allTools = listTools();
+      // Group by server so we can clear + re-add per server atomically
+      const byServer = new Map<string, typeof allTools>();
+      for (const t of allTools) {
+        if (!byServer.has(t.serverId)) byServer.set(t.serverId, []);
+        byServer.get(t.serverId)!.push(t);
+      }
+      for (const [serverId, tools] of byServer) {
+        await removeServerFromIndex(serverId);
+        await indexTools(tools);
+      }
+      res.json({ success: true, reindexed: allTools.length });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       res.status(500).json({ error: msg });

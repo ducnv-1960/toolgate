@@ -103,41 +103,51 @@ export default function ToolsPage() {
         <div className="text-center py-16 text-gray-500">
           <p>{query ? "No tools matched your search" : "No tools indexed yet"}</p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {tools.map((t, i) => (
-            <div
-              key={`${t.serverId}:${t.toolName}:${i}`}
-              className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-indigo-600 cursor-pointer transition-colors"
-              onClick={() => openTester(t)}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-medium text-indigo-300">
-                      {t.toolName}
-                    </span>
-                    <span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">
-                      {t.serverName}
-                    </span>
-                    {t.score !== undefined && (
-                      <span className="text-xs text-green-400">
-                        score: {t.score.toFixed(3)}
-                      </span>
-                    )}
+      ) : (() => {
+        const nameCounts = tools.reduce<Record<string, number>>((acc, t) => {
+          acc[t.toolName] = (acc[t.toolName] ?? 0) + 1;
+          return acc;
+        }, {});
+        return (
+          <div className="space-y-2">
+            {tools.map((t, i) => {
+              const isDuplicate = (nameCounts[t.toolName] ?? 0) > 1;
+              return (
+                <div
+                  key={`${t.serverId}:${t.toolName}:${i}`}
+                  className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-indigo-600 cursor-pointer transition-colors"
+                  onClick={() => openTester(t)}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-medium text-indigo-300">{t.toolName}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${isDuplicate ? "bg-yellow-900/60 text-yellow-300 border border-yellow-700/50" : "bg-gray-700 text-gray-400"}`}>
+                          {t.serverName}
+                        </span>
+                        {isDuplicate && (
+                          <span className="text-xs text-yellow-500" title="This tool name exists on multiple servers">
+                            ⚠ duplicate name
+                          </span>
+                        )}
+                        {t.score !== undefined && (
+                          <span className="text-xs text-green-400">score: {t.score.toFixed(3)}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-400 mt-1 line-clamp-2">
+                        {t.description || "(no description)"}
+                      </p>
+                    </div>
+                    <button className="text-xs text-indigo-400 hover:text-indigo-300 flex-shrink-0 mt-1">
+                      Test →
+                    </button>
                   </div>
-                  <p className="text-sm text-gray-400 mt-1 line-clamp-2">
-                    {t.description || "(no description)"}
-                  </p>
                 </div>
-                <button className="text-xs text-indigo-400 hover:text-indigo-300 flex-shrink-0 mt-1">
-                  Test →
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }

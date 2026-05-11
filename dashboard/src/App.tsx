@@ -3,6 +3,8 @@ import ServersPage from "./pages/Servers.tsx";
 import ToolsPage from "./pages/Tools.tsx";
 import TesterPage from "./pages/Tester.tsx";
 import IntegrationsPage from "./pages/Integrations.tsx";
+import LogsPage from "./pages/Logs.tsx";
+import SettingsPage from "./pages/Settings.tsx";
 
 export default function App() {
   const navCls = ({ isActive }: { isActive: boolean }) =>
@@ -32,6 +34,12 @@ export default function App() {
             <NavLink to="/integrations" className={navCls}>
               Integrations
             </NavLink>
+            <NavLink to="/logs" className={navCls}>
+              Logs
+            </NavLink>
+            <NavLink to="/settings" className={navCls}>
+              Settings
+            </NavLink>
           </div>
         </div>
       </nav>
@@ -41,6 +49,8 @@ export default function App() {
           <Route path="/tools" element={<ToolsPage />} />
           <Route path="/tester" element={<TesterPage />} />
           <Route path="/integrations" element={<IntegrationsPage />} />
+          <Route path="/logs" element={<LogsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
     </div>
