@@ -78,7 +78,7 @@ function IntegrationCard({
           </span>
           {isStale && (
             <span className="text-yellow-500 ml-auto">
-              ⚠ port mismatch (hub: {hubUrl})
+              ⚠ port mismatch (Toolgate: {hubUrl})
             </span>
           )}
         </div>

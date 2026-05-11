@@ -59,7 +59,7 @@ export function buildHandleExecuteTool(
 
     const client = clientManager.getClient(server_id);
     if (!client) {
-      const error = `Server "${server_id}" is not connected. Check the hub dashboard to reconnect.`;
+      const error = `Server "${server_id}" is not connected. Check the Toolgate dashboard to reconnect.`;
       addLog({ timestamp: start, serverId: server_id, serverName: tool.serverName, toolName: tool_name, arguments: toolArgs, error, durationMs: 0, caller });
       throw new Error(error);
     }

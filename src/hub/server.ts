@@ -109,7 +109,7 @@ export function mountMcpRouter(
       // sessionId is set by the SDK during handleRequest
       if (transport.sessionId) sessions.set(transport.sessionId, transport);
     } catch (err) {
-      console.error("[MCP] POST error:", err);
+      console.error("[Toolgate] POST error:", err);
       if (!res.headersSent) res.status(500).end();
     }
   });
@@ -122,7 +122,7 @@ export function mountMcpRouter(
       if (!transport) { res.status(404).end(); return; }
       await transport.handleRequest(req, res);
     } catch (err) {
-      console.error("[MCP] GET error:", err);
+      console.error("[Toolgate] GET error:", err);
       if (!res.headersSent) res.status(500).end();
     }
   });
@@ -135,7 +135,7 @@ export function mountMcpRouter(
       if (!transport) { res.status(404).end(); return; }
       await transport.handleRequest(req, res);
     } catch (err) {
-      console.error("[MCP] DELETE error:", err);
+      console.error("[Toolgate] DELETE error:", err);
       if (!res.headersSent) res.status(500).end();
     }
   });
