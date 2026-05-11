@@ -1,0 +1,211 @@
+import { useState, useEffect, useCallback } from "react";
+
+interface IntegrationStatus {
+  path: string;
+  exists: boolean;
+  configured: boolean;
+  url?: string;
+  samePort: boolean;
+}
+
+interface IntegrationsData {
+  hubUrl: string;
+  vscode: IntegrationStatus;
+  claudeCode: IntegrationStatus;
+}
+
+function IntegrationCard({
+  title,
+  icon,
+  status,
+  hubUrl,
+  onAdd,
+  onRemove,
+  loading,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  status: IntegrationStatus;
+  hubUrl: string;
+  onAdd: () => void;
+  onRemove: () => void;
+  loading: boolean;
+}) {
+  const isReady = status.configured && status.samePort;
+  const isStale = status.configured && !status.samePort;
+
+  return (
+    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl">{icon}</div>
+          <div>
+            <h3 className="font-semibold text-lg">{title}</h3>
+            <p className="text-xs text-gray-500 mt-0.5 font-mono">{status.path}</p>
+          </div>
+        </div>
+        <StatusBadge configured={isReady} stale={isStale} />
+      </div>
+
+      {status.configured && (
+        <div className="mb-4 bg-gray-900 rounded-lg p-3 text-xs font-mono text-gray-400 flex items-center gap-2">
+          <span className="text-gray-600">url:</span>
+          <span className={isStale ? "text-yellow-400" : "text-green-400"}>
+            {status.url}
+          </span>
+          {isStale && (
+            <span className="text-yellow-500 ml-auto">
+              ⚠ port mismatch (hub: {hubUrl})
+            </span>
+          )}
+        </div>
+      )}
+
+      {!status.configured && (
+        <p className="text-sm text-gray-500 mb-4">
+          MCP Hub is not registered yet. Click below to add it automatically.
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        {!isReady ? (
+          <button
+            onClick={onAdd}
+            disabled={loading}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {loading
+              ? "Updating..."
+              : isStale
+              ? "Update URL"
+              : "Add to config"}
+          </button>
+        ) : (
+          <button
+            onClick={onRemove}
+            disabled={loading}
+            className="bg-red-900/40 hover:bg-red-900/70 disabled:opacity-50 text-red-400 text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {loading ? "Removing..." : "Remove from config"}
+          </button>
+        )}
+      </div>
+
+      {isReady && (
+        <p className="text-xs text-green-500 mt-3">
+          Restart VS Code / Claude Code to apply the change.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({
+  configured,
+  stale,
+}: {
+  configured: boolean;
+  stale: boolean;
+}) {
+  if (stale)
+    return (
+      <span className="text-xs bg-yellow-900/50 text-yellow-400 border border-yellow-700 px-2 py-1 rounded-full">
+        Port mismatch
+      </span>
+    );
+  if (configured)
+    return (
+      <span className="text-xs bg-green-900/50 text-green-400 border border-green-700 px-2 py-1 rounded-full">
+        Registered
+      </span>
+    );
+  return (
+    <span className="text-xs bg-gray-700 text-gray-400 border border-gray-600 px-2 py-1 rounded-full">
+      Not registered
+    </span>
+  );
+}
+
+export default function IntegrationsPage() {
+  const [data, setData] = useState<IntegrationsData | null>(null);
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+
+  const fetchStatus = useCallback(async () => {
+    const res = await fetch("/api/integrations");
+    setData(await res.json());
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  async function handleAction(
+    target: "vscode" | "claude-code",
+    action: "add" | "remove"
+  ) {
+    setLoading((l) => ({ ...l, [target]: true }));
+    await fetch(`/api/integrations/${target}`, {
+      method: action === "add" ? "POST" : "DELETE",
+    });
+    await fetchStatus();
+    setLoading((l) => ({ ...l, [target]: false }));
+  }
+
+  if (!data) return <p className="text-gray-400">Loading...</p>;
+
+  return (
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold mb-1">Integrations</h1>
+        <p className="text-gray-400 text-sm">
+          Automatically register MCP Hub in VS Code or Claude Code so it loads on startup.
+        </p>
+      </div>
+
+      {/* Hub URL info */}
+      <div className="bg-indigo-950/50 border border-indigo-800 rounded-xl p-4 mb-8 flex items-center gap-4">
+        <div className="flex-1">
+          <p className="text-xs text-indigo-400 font-medium mb-1">MCP Hub URL (current)</p>
+          <p className="font-mono text-sm text-indigo-200">{data.hubUrl}</p>
+        </div>
+        <button
+          onClick={() => navigator.clipboard.writeText(data.hubUrl)}
+          className="text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-900/50 px-3 py-1.5 rounded-lg"
+        >
+          Copy
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <IntegrationCard
+          title="VS Code"
+          icon="⬡"
+          status={data.vscode}
+          hubUrl={data.hubUrl}
+          loading={!!loading["vscode"]}
+          onAdd={() => handleAction("vscode", "add")}
+          onRemove={() => handleAction("vscode", "remove")}
+        />
+        <IntegrationCard
+          title="Claude Code"
+          icon="◆"
+          status={data.claudeCode}
+          hubUrl={data.hubUrl}
+          loading={!!loading["claude-code"]}
+          onAdd={() => handleAction("claude-code", "add")}
+          onRemove={() => handleAction("claude-code", "remove")}
+        />
+      </div>
+
+      <div className="mt-8 bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+        <h3 className="text-sm font-semibold mb-3 text-gray-300">Notes</h3>
+        <ul className="text-sm text-gray-400 space-y-1.5 list-disc list-inside">
+          <li>After adding the config, <strong className="text-gray-200">restart</strong> VS Code or Claude Code for it to take effect.</li>
+          <li>MCP Hub must be running before VS Code / Claude Code starts for the connection to succeed.</li>
+          <li>If you change the port, click <strong className="text-gray-200">Update URL</strong> then restart the client.</li>
+          <li>Config is written to the user-level (global) settings file and applies to all projects.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
