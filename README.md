@@ -15,6 +15,8 @@ Connect multiple MCP servers in one place. Instead of adding each server separat
 
 ![Add MCP Server](docs/screenshot-add-server.png)
 
+![Tools Browser — semantic search across all servers](docs/screenshot-tools-search.png)
+
 ![Integrations — one-click config for VS Code & Claude Code](docs/screenshot-integrations.png)
 
 ## Token efficiency
